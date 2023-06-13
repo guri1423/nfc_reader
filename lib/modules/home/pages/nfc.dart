@@ -14,9 +14,14 @@ class NFCPage extends StatefulWidget {
 class _NFCPageState extends State<NFCPage> {
   String _nfcData = '';
 
-  Future<void> _checkNFC() async {
-    var availability = await FlutterNfcKit.nfcAvailability;
-    if (availability != NFCAvailability.available) {
+  Future<bool> checkNFC() async {
+    try {
+      var availability = await FlutterNfcKit.nfcAvailability;
+      debugPrint('Device can Scan NFC');
+      return availability == NFCAvailability.available;
+
+    } catch (e) {
+      return false;
     }
   }
 
@@ -49,22 +54,19 @@ class _NFCPageState extends State<NFCPage> {
     }
   }
 
-  Future<void> _openCamera() async {
-    if (await Permission.camera.request().isGranted) {
-      setState(() {
-        _nfcData = 'Scanning NFC Tag...';
-      });
-      await _startNFC();
-    } else {
-
-    }
+  Future<void> _startScan() async {
+    setState(() {
+      _nfcData = 'Scanning NFC Tag...';
+    });
+    await _startNFC();
   }
+
 
 
   @override
   void initState() {
     super.initState();
-    _checkNFC();
+    checkNFC();
   }
 
   @override
@@ -84,9 +86,9 @@ class _NFCPageState extends State<NFCPage> {
             Text(_nfcData),
             ElevatedButton(
               onPressed: (){
-               _openCamera();
+               _startScan();
               },
-              child: const Text('Open Camera'),
+              child: const Text('Start Scanning'),
             ),
           ],
         ),
