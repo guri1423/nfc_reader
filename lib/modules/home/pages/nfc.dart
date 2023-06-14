@@ -2,9 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
-import 'package:ndef/ndef.dart' as ndef;
-import 'package:permission_handler/permission_handler.dart';
-
 
 class NFCPage extends StatefulWidget {
   @override
@@ -13,15 +10,19 @@ class NFCPage extends StatefulWidget {
 
 class _NFCPageState extends State<NFCPage> {
   String _nfcData = '';
+  bool _nfcEnabled = false;
 
-  Future<bool> checkNFC() async {
+  Future<void> checkNFC() async {
     try {
       var availability = await FlutterNfcKit.nfcAvailability;
       debugPrint('Device can Scan NFC');
-      return availability == NFCAvailability.available;
-
+      setState(() {
+        _nfcEnabled = (availability == NFCAvailability.available);
+      });
     } catch (e) {
-      return false;
+      setState(() {
+        _nfcEnabled = false;
+      });
     }
   }
 
@@ -32,25 +33,28 @@ class _NFCPageState extends State<NFCPage> {
         iosMultipleTagMessage: "Multiple tags found!",
         iosAlertMessage: "Scan your tag",
       );
-      print(jsonEncode(tag));
+      print('Response from Tag ${jsonEncode(tag)}');
 
       if (tag.ndefAvailable!) {
-        // Decoded NDEF records
         final decodedRecords = await FlutterNfcKit.readNDEFRecords(cached: false);
-        for (var record in decodedRecords) {
-          print(record.toString());
+        if (decodedRecords.isNotEmpty) {
+          final firstRecord = decodedRecords.first;
+          final payload = utf8.decode(firstRecord.payload as List<int>);
+          debugPrint('Payload: $payload');
+          setState(() {
+            _nfcData = payload;
+          });
         }
 
-        // Raw NDEF records
         final rawRecords = await FlutterNfcKit.readNDEFRawRecords(cached: false);
         for (var record in rawRecords) {
-          print(jsonEncode(record).toString());
+          debugPrint(jsonEncode(record).toString());
         }
       }
 
       await FlutterNfcKit.finish(iosAlertMessage: "Success");
     } on PlatformException {
-
+      // Handle exceptions if necessary
     }
   }
 
@@ -61,12 +65,31 @@ class _NFCPageState extends State<NFCPage> {
     await _startNFC();
   }
 
-
+  void _showNFCEnableDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('NFC is disabled'),
+          content: Text('Please enable NFC in your device settings.'),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
     super.initState();
     checkNFC();
+
   }
 
   @override
@@ -85,9 +108,7 @@ class _NFCPageState extends State<NFCPage> {
             ),
             Text(_nfcData),
             ElevatedButton(
-              onPressed: (){
-               _startScan();
-              },
+              onPressed: _nfcEnabled ? _startScan : _showNFCEnableDialog,
               child: const Text('Start Scanning'),
             ),
           ],
@@ -96,5 +117,3 @@ class _NFCPageState extends State<NFCPage> {
     );
   }
 }
-
-

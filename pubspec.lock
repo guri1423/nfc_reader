@@ -86,6 +86,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.1"
+  flutter_nfc_compatibility:
+    dependency: "direct main"
+    description:
+      name: flutter_nfc_compatibility
+      sha256: "64e3a24b54867174bd3978536c8f63e764a527f16d3a482767cc876ce9061ab6"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.4"
   flutter_nfc_kit:
     dependency: "direct main"
     description:
@@ -168,6 +176,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.3.1"
+  nfc_emulator:
+    dependency: "direct main"
+    description:
+      name: nfc_emulator
+      sha256: "08a7cd99fa75d4129f49ded8d6a79565f71d376fd66b6211766301e0d1a31fa6"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.0-nullsafety.0"
+  nfc_manager:
+    dependency: "direct main"
+    description:
+      name: nfc_manager
+      sha256: cff1e59e316388f4508b4ba0cea4430e4ba39f8a68ecfb3e1256be25c13b0f4a
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.2.0"
   path:
     dependency: transitive
     description:
