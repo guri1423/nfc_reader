@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nfc_manager/nfc_manager.dart';
-import 'package:url_launcher/url_launcher.dart';
+
 
 class NFCSendingPage extends StatefulWidget {
   @override
@@ -53,18 +53,17 @@ class _NFCSendingPageState extends State<NFCSendingPage> {
       return;
     }
 
-
     // Start NFC session and send data
     NfcManager.instance.startSession(
       onDiscovered: (NfcTag tag) async {
         Ndef? ndef = Ndef.from(tag);
-        if (ndef!.isWritable) {
+        if (ndef == null || !ndef.isWritable) {
           showDialog(
             context: context,
             builder: (context) {
               return AlertDialog(
                 title: Text('Error'),
-                content: Text('Tag is not writable.'),
+                content: Text('Tag is not writable or unsupported.'),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
@@ -153,4 +152,10 @@ class _NFCSendingPageState extends State<NFCSendingPage> {
       ),
     );
   }
+}
+
+void main() {
+  runApp(MaterialApp(
+    home: NFCSendingPage(),
+  ));
 }
