@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_nfc_compatibility/flutter_nfc_compatibility.dart';
 import 'package:nfc_manager/nfc_manager.dart';
+import 'package:nfc_reader/modules/home/pages/nfc_send_data.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,14 +16,12 @@ class MyAppState extends State<MyApp> {
   ValueNotifier<dynamic> result = ValueNotifier(null);
   List<String> tagDataList = [];
 
-  TextEditingController writerController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    checkNfc();
     _startNfcListening();
-    writerController.text = 'Flutter NFC Check';
-    checkAvailibility();
   }
 
   @override
@@ -32,20 +30,31 @@ class MyAppState extends State<MyApp> {
     super.dispose();
   }
 
-
-
-  void checkAvailibility() async {
-    var nfcCompatibility = await FlutterNfcCompatibility.checkNFCAvailability();
-    if (nfcCompatibility == NFCAvailability.Enabled) {
-      writerController.text = "Enabled";
-    } else if (nfcCompatibility == NFCAvailability.Disabled) {
-      writerController.text = "Disabled";
-    } else {
-      writerController.text = "Not Supported";
+  void checkNfc()async{
+    bool isNfcAvailable = await NfcManager.instance.isAvailable();
+    if (!isNfcAvailable) {
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Error'),
+            content: Text('NFC is not available.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
     }
   }
 
-  void _startNfcListening() {
+
+  void _startNfcListening() async {
+
     NfcManager.instance.startSession(onDiscovered: (NfcTag tag) async {
       setState(() {
         result.value = tag.data;
@@ -64,41 +73,54 @@ class MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        appBar: AppBar(title: const Text('NFC READER')),
-        body: SafeArea(
-          child: Flex(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            direction: Axis.vertical,
-            children: [
-              Flexible(
-                flex: 2,
-                child: Container(
-                  margin: EdgeInsets.all(4),
-                  constraints: BoxConstraints.expand(),
-                  decoration: BoxDecoration(border: Border.all()),
-                  child: SingleChildScrollView(
-                    child: ValueListenableBuilder<dynamic>(
-                      valueListenable: result,
-                      builder: (context, value, _) {
-                        return Column(
-                          children: tagDataList
-                              .map((tagData) => Text(tagData))
-                              .toList(),
-                        );
-                      },
+      home: Builder(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: const Text('NFC READER')),
+          body: SafeArea(
+            child: Flex(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              direction: Axis.vertical,
+              children: [
+                Flexible(
+                  flex: 2,
+                  child: Container(
+                    margin: EdgeInsets.all(4),
+                    constraints: BoxConstraints.expand(),
+                    decoration: BoxDecoration(border: Border.all()),
+                    child: SingleChildScrollView(
+                      child: ValueListenableBuilder<dynamic>(
+                        valueListenable: result,
+                        builder: (context, value, _) {
+                          return Column(
+                            children: tagDataList
+                                .map((tagData) => Text(tagData))
+                                .toList(),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Flexible(
-                flex: 3,
-                child: Container(),
-              ),
-            ],
+                Flexible(
+                  flex: 3,
+                  child: Container(),
+                ),
+                ElevatedButton(
+                  onPressed: (){
+                   Navigator.push(context, MaterialPageRoute(builder: (context) => NFCSendingPage()));
+                  },
+                  child: const Text('Send NFC Data'),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+      )
     );
   }
+
+
 }
+
+
+

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-
+import 'package:nfc_manager/nfc_manager.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class NFCSendingPage extends StatefulWidget {
   @override
@@ -31,20 +32,92 @@ class _NFCSendingPageState extends State<NFCSendingPage> {
       return;
     }
 
+    // Check NFC availability
+    bool isNfcAvailable = await NfcManager.instance.isAvailable();
+    if (!isNfcAvailable) {
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: Text('Error'),
+            content: Text('NFC is not available.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Success'),
-          content: Text('NFC message sent!'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('OK'),
-            ),
-          ],
-        );
+
+    // Start NFC session and send data
+    NfcManager.instance.startSession(
+      onDiscovered: (NfcTag tag) async {
+        Ndef? ndef = Ndef.from(tag);
+        if (ndef!.isWritable) {
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: Text('Error'),
+                content: Text('Tag is not writable.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('OK'),
+                  ),
+                ],
+              );
+            },
+          );
+          NfcManager.instance.stopSession();
+          return;
+        }
+
+        NdefMessage message = NdefMessage([
+          NdefRecord.createText(dataToSend),
+        ]);
+
+        try {
+          await ndef.write(message);
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: Text('Success'),
+                content: Text('NFC message sent!'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('OK'),
+                  ),
+                ],
+              );
+            },
+          );
+        } catch (e) {
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: Text('Error'),
+                content: Text('Failed to write NFC message.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('OK'),
+                  ),
+                ],
+              );
+            },
+          );
+        }
+
+        NfcManager.instance.stopSession();
       },
     );
   }
