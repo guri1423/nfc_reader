@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 import 'package:nfc_reader/modules/home/pages/nfc_send_data.dart';
 
+
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(MyApp());
