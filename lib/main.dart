@@ -1,128 +1,163 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:nfc_manager/nfc_manager.dart';
-import 'package:nfc_reader/modules/home/pages/nfc_send_data.dart';
-
-
+import 'package:flutter/services.dart';
+import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
+import 'package:nfc_reader/api_services/api_service.dart';
+import 'package:background_fetch/background_fetch.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(MyApp());
+  runApp(const MyApp());
+  BackgroundFetch.registerHeadlessTask(backgroundFetchHeadlessTask);
 }
 
 class MyApp extends StatefulWidget {
+  const MyApp({Key? key}) : super(key: key);
+
   @override
-  State<StatefulWidget> createState() => MyAppState();
+  State<MyApp> createState() => _MyAppState();
+
+  static Future<void> _getMessages() async {
+    // Your code for retrieving messages
+  }
 }
 
-class MyAppState extends State<MyApp> {
-  ValueNotifier<dynamic> result = ValueNotifier(null);
-  List<String> tagDataList = [];
-
+class _MyAppState extends State<MyApp> {
+  final SmsQuery _query = SmsQuery();
+  List<SmsMessage> _messages = [];
+  Timer? _timer;
+  bool _backgroundFetchEnabled = false;
 
   @override
   void initState() {
     super.initState();
-    checkNfc();
-    _startNfcListening();
+    _configureBackgroundFetch();
   }
 
   @override
   void dispose() {
-    _stopNfcListening();
+    _stopMessageMonitoring();
     super.dispose();
   }
 
-  void checkNfc()async{
-    bool isNfcAvailable = await NfcManager.instance.isAvailable();
-    if (!isNfcAvailable) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('Error'),
-            content: Text('NFC is not available.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('OK'),
-              ),
-            ],
-          );
-        },
-      );
-      return;
-    }
+  ApiServices _apiServices = ApiServices();
+
+  Future<void> _getMessages() async {
+    await MyApp._getMessages();
   }
 
-
-  void _startNfcListening() async {
-
-    NfcManager.instance.startSession(onDiscovered: (NfcTag tag) async {
-      setState(() {
-        result.value = tag.data;
-        tagDataList.clear(); // Clear previous tag data
-        tagDataList.add(tag.data.toString());
-      });
+  void _startMessageMonitoring() {
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _getMessages();
     });
   }
 
+  void _stopMessageMonitoring() {
+    _timer?.cancel();
+    _timer = null;
+  }
 
-  void _stopNfcListening() {
-    NfcManager.instance.stopSession();
+  Future<void> _configureBackgroundFetch() async {
+    try {
+      int status = await BackgroundFetch.configure(
+        BackgroundFetchConfig(
+          minimumFetchInterval: 15,
+          stopOnTerminate: false,
+          enableHeadless: true,
+          requiresBatteryNotLow: false,
+          requiresCharging: false,
+          requiresStorageNotLow: false,
+          requiresDeviceIdle: false,
+          requiredNetworkType: NetworkType.NONE,
+        ),
+            (String taskId) async {
+          print("[BackgroundFetch] Event received $taskId");
+          MyApp._getMessages();
+          BackgroundFetch.finish(taskId);
+        },
+            (String taskId) async {
+          print("[BackgroundFetch] TASK TIMEOUT taskId: $taskId");
+          BackgroundFetch.finish(taskId);
+        },
+      );
+      print('[BackgroundFetch] configure success: $status');
+      setState(() {
+        _backgroundFetchEnabled = true;
+      });
+    } catch (e) {
+      print('[BackgroundFetch] configure FAILURE: $e');
+      setState(() {
+        _backgroundFetchEnabled = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Builder(
-        builder: (context) => Scaffold(
-          appBar: AppBar(title: const Text('NFC READER')),
-          body: SafeArea(
-            child: Flex(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              direction: Axis.vertical,
-              children: [
-                Flexible(
-                  flex: 2,
-                  child: Container(
-                    margin: EdgeInsets.all(4),
-                    constraints: BoxConstraints.expand(),
-                    decoration: BoxDecoration(border: Border.all()),
-                    child: SingleChildScrollView(
-                      child: ValueListenableBuilder<dynamic>(
-                        valueListenable: result,
-                        builder: (context, value, _) {
-                          return Column(
-                            children: tagDataList
-                                .map((tagData) => Text(tagData))
-                                .toList(),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-                Flexible(
-                  flex: 3,
-                  child: Container(),
-                ),
-                ElevatedButton(
-                  onPressed: (){
-                   Navigator.push(context, MaterialPageRoute(builder: (context) => NFCSendingPage()));
-                  },
-                  child: const Text('Send NFC Data'),
-                ),
-              ],
+      title: 'Flutter SMS Inbox App',
+      theme: ThemeData(
+        primarySwatch: Colors.teal,
+      ),
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text('SMS Inbox Example'),
+        ),
+        body: Container(
+          padding: const EdgeInsets.all(10.0),
+          child: _messages.isNotEmpty
+              ? _MessagesListView(
+            messages: _messages,
+          )
+              : const Center(
+            child: Text(
+              'No messages to show.\n Tap refresh button...',
+              textAlign: TextAlign.center,
             ),
           ),
         ),
-      )
+        floatingActionButton: FloatingActionButton(
+          onPressed: _getMessages,
+          child: const Icon(Icons.refresh),
+        ),
+      ),
     );
   }
-
-
 }
 
+class _MessagesListView extends StatelessWidget {
+  const _MessagesListView({
+    Key? key,
+    required this.messages,
+  }) : super(key: key);
 
+  final List<SmsMessage> messages;
 
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      shrinkWrap: true,
+      itemCount: messages.length,
+      itemBuilder: (BuildContext context, int i) {
+        var message = messages[i];
+
+        return ListTile(
+          title: Text('${message.sender} [${message.date}]'),
+          subtitle: Text('${message.body}'),
+        );
+      },
+    );
+  }
+}
+
+void backgroundFetchHeadlessTask(HeadlessTask task) async {
+  String taskId = task.taskId;
+  bool isTimeout = task.timeout;
+  if (isTimeout) {
+    print("[BackgroundFetch] Headless task timed-out: $taskId");
+    BackgroundFetch.finish(taskId);
+    return;
+  }
+  print('[BackgroundFetch] Headless event received.');
+  MyApp._getMessages(); // Call your message retrieval function here
+  BackgroundFetch.finish(taskId);
+}
