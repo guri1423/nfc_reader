@@ -1,13 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:nfc_reader/api_services/api_service.dart';
-import 'package:background_fetch/background_fetch.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 
 void main() {
   runApp(const MyApp());
-  BackgroundFetch.registerHeadlessTask(backgroundFetchHeadlessTask);
 }
 
 class MyApp extends StatefulWidget {
@@ -15,22 +15,17 @@ class MyApp extends StatefulWidget {
 
   @override
   State<MyApp> createState() => _MyAppState();
-
-  static Future<void> _getMessages() async {
-    // Your code for retrieving messages
-  }
 }
 
 class _MyAppState extends State<MyApp> {
   final SmsQuery _query = SmsQuery();
   List<SmsMessage> _messages = [];
   Timer? _timer;
-  bool _backgroundFetchEnabled = false;
 
   @override
   void initState() {
     super.initState();
-    _configureBackgroundFetch();
+    _startMessageMonitoring();
   }
 
   @override
@@ -41,12 +36,8 @@ class _MyAppState extends State<MyApp> {
 
   ApiServices _apiServices = ApiServices();
 
-  Future<void> _getMessages() async {
-    await MyApp._getMessages();
-  }
-
   void _startMessageMonitoring() {
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _timer = Timer.periodic(Duration(seconds: 5), (_) {
       _getMessages();
     });
   }
@@ -56,40 +47,38 @@ class _MyAppState extends State<MyApp> {
     _timer = null;
   }
 
-  Future<void> _configureBackgroundFetch() async {
-    try {
-      int status = await BackgroundFetch.configure(
-        BackgroundFetchConfig(
-          minimumFetchInterval: 15,
-          stopOnTerminate: false,
-          enableHeadless: true,
-          requiresBatteryNotLow: false,
-          requiresCharging: false,
-          requiresStorageNotLow: false,
-          requiresDeviceIdle: false,
-          requiredNetworkType: NetworkType.NONE,
-        ),
-            (String taskId) async {
-          print("[BackgroundFetch] Event received $taskId");
-          MyApp._getMessages();
-          BackgroundFetch.finish(taskId);
-        },
-            (String taskId) async {
-          print("[BackgroundFetch] TASK TIMEOUT taskId: $taskId");
-          BackgroundFetch.finish(taskId);
-        },
+  Future<void> _getMessages() async {
+    var permission = await Permission.sms.status;
+    if (permission.isGranted) {
+      final messages = await _query.querySms(
+        kinds: [
+          SmsQueryKind.inbox,
+          SmsQueryKind.sent,
+        ],
+        count: 10,
       );
-      print('[BackgroundFetch] configure success: $status');
-      setState(() {
-        _backgroundFetchEnabled = true;
-      });
-    } catch (e) {
-      print('[BackgroundFetch] configure FAILURE: $e');
-      setState(() {
-        _backgroundFetchEnabled = false;
-      });
+      debugPrint('sms inbox messages: ${messages.length}');
+
+      // Check if the latest message is different from the previously received message
+      if (_messages.isNotEmpty && messages.isNotEmpty) {
+        final latestMessage = messages.first;
+        final previousMessage = _messages.first;
+
+        if (latestMessage.body != previousMessage.body) {
+          setState(() => _messages = messages);
+          _apiServices.postMessage(latestMessage);
+        }
+      } else {
+        setState(() => _messages = messages);
+      }
+    } else {
+      await Permission.sms.request();
     }
   }
+
+
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -108,9 +97,10 @@ class _MyAppState extends State<MyApp> {
               ? _MessagesListView(
             messages: _messages,
           )
-              : const Center(
+              : Center(
             child: Text(
               'No messages to show.\n Tap refresh button...',
+              style: Theme.of(context).textTheme.headlineSmall,
               textAlign: TextAlign.center,
             ),
           ),
@@ -147,17 +137,4 @@ class _MessagesListView extends StatelessWidget {
       },
     );
   }
-}
-
-void backgroundFetchHeadlessTask(HeadlessTask task) async {
-  String taskId = task.taskId;
-  bool isTimeout = task.timeout;
-  if (isTimeout) {
-    print("[BackgroundFetch] Headless task timed-out: $taskId");
-    BackgroundFetch.finish(taskId);
-    return;
-  }
-  print('[BackgroundFetch] Headless event received.');
-  MyApp._getMessages(); // Call your message retrieval function here
-  BackgroundFetch.finish(taskId);
 }

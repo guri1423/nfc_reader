@@ -45,7 +45,7 @@ dependencies:
   image_picker: ^0.8.9
   flutter_sms_inbox: ^1.0.3
   http: ^1.0.0
-  background_fetch: ^1.1.6
+  flutter_background: ^1.2.0
 
 
 
